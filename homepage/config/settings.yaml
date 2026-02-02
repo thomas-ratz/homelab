@@ -8,10 +8,10 @@ description: Raspberry Pi 5 Homelab Dashboard
 background:
   image: https://images.unsplash.com/photo-1639322537228-f710d846310a?w=1920
   blur: sm
-  opacity: 90
+  opacity: 0
 
 theme: dark
-color: blue
+color: slate
 
 headerStyle: clean
 
