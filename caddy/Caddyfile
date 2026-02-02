@@ -1,0 +1,82 @@
+# ===========================================
+# Pi5 Homelab - Caddy Reverse Proxy
+# ===========================================
+# All services accessed via hostname.thopi.ts
+# Using HTTP only (internal network via Tailscale)
+
+{
+    # Disable automatic HTTPS for private domains
+    auto_https off
+}
+
+# ========== Core Services ==========
+
+# Dashboard
+http://home.thopi.ts {
+    reverse_proxy homepage:3000
+}
+
+# DNS Admin
+http://adguard.thopi.ts {
+    reverse_proxy adguard:80
+}
+
+# Docker Management
+http://portainer.thopi.ts {
+    reverse_proxy portainer:9000
+}
+
+# Monitoring
+http://uptime.thopi.ts {
+    reverse_proxy uptime-kuma:3001
+}
+
+# ========== Media Server ==========
+
+http://jellyfin.thopi.ts {
+    reverse_proxy jellyfin:8096
+}
+
+# ========== VPN-Protected Services ==========
+
+http://sonarr.thopi.ts {
+    reverse_proxy gluetun:8989
+}
+
+http://radarr.thopi.ts {
+    reverse_proxy gluetun:7878
+}
+
+http://bazarr.thopi.ts {
+    reverse_proxy gluetun:6767
+}
+
+http://prowlarr.thopi.ts {
+    reverse_proxy gluetun:9696
+}
+
+http://qbit.thopi.ts {
+    reverse_proxy gluetun:8080
+}
+
+http://lidarr.thopi.ts {
+    reverse_proxy gluetun:8686
+}
+
+# ========== Photo Management ==========
+
+http://photos.thopi.ts {
+    reverse_proxy immich-server:2283 {
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# ========== Matrix Chat ==========
+
+http://matrix.thopi.ts {
+    reverse_proxy synapse:8008
+}
+
+http://chat.thopi.ts {
+    reverse_proxy element:80
+}

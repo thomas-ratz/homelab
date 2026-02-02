@@ -1,0 +1,46 @@
+# ===========================================
+# Pi5 Homelab - Homepage Settings
+# ===========================================
+
+title: Pi5 Homelab
+description: Raspberry Pi 5 Homelab Dashboard
+
+background:
+  image: https://images.unsplash.com/photo-1639322537228-f710d846310a?w=1920
+  blur: sm
+  opacity: 90
+
+theme: dark
+color: blue
+
+headerStyle: clean
+
+favicon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/raspberry-pi.png
+
+layout:
+  Infrastructure:
+    style: row
+    columns: 4
+  Monitoring:
+    style: row
+    columns: 2
+  Media Server:
+    style: row
+    columns: 1
+  Media Stack:
+    style: row
+    columns: 5
+  Downloads:
+    style: row
+    columns: 2
+  Photos:
+    style: row
+    columns: 1
+  Chat:
+    style: row
+    columns: 2
+
+cardBlur: lg
+statusStyle: dot
+showStats: true
+hideVersion: true

@@ -1,0 +1,22 @@
+{
+    "default_server_config": {
+        "m.homeserver": {
+            "base_url": "http://matrix.thopi.ts",
+            "server_name": "matrix.thopi.ts"
+        }
+    },
+    "brand": "Pi5 Homelab Chat",
+    "integrations_ui_url": "",
+    "integrations_rest_url": "",
+    "integrations_widgets_urls": [],
+    "disable_guests": true,
+    "disable_3pid_login": true,
+    "default_theme": "dark",
+    "room_directory": {
+        "servers": ["matrix.thopi.ts"]
+    },
+    "features": {
+        "feature_spotlight": true
+    },
+    "show_labs_settings": true
+}

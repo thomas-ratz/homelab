@@ -1,0 +1,7 @@
+# ===========================================
+# Pi5 Homelab - Docker Integration
+# ===========================================
+
+my-docker:
+  host: dockerproxy
+  port: 2375

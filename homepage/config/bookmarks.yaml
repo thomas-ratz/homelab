@@ -1,0 +1,39 @@
+# ===========================================
+# Pi5 Homelab - Bookmarks
+# ===========================================
+
+- Management:
+    - Tailscale Admin:
+        - icon: tailscale.png
+          href: https://login.tailscale.com/admin
+    - ProtonVPN:
+        - icon: protonvpn.png
+          href: https://account.protonvpn.com/
+    - GitHub:
+        - icon: github.png
+          href: https://github.com/
+
+- Documentation:
+    - Docker Docs:
+        - icon: docker.png
+          href: https://docs.docker.com/
+    - AdGuard Wiki:
+        - icon: adguard-home.png
+          href: https://github.com/AdguardTeam/AdGuardHome/wiki
+    - Homepage Docs:
+        - icon: homepage.png
+          href: https://gethomepage.dev/
+    - Servarr Wiki:
+        - icon: sonarr.png
+          href: https://wiki.servarr.com/
+
+- Media Resources:
+    - TMDB:
+        - icon: mdi-movie-#01D277
+          href: https://www.themoviedb.org/
+    - TVDb:
+        - icon: mdi-television-#6CD491
+          href: https://thetvdb.com/
+    - MusicBrainz:
+        - icon: mdi-music-#BA478F
+          href: https://musicbrainz.org/

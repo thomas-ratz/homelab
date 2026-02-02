@@ -1,0 +1,12 @@
+[Unit]
+Description=Delayed restart of pironman5 after boot
+After=multi-user.target pironman5.service
+Wants=pironman5.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/thopi/homelab/scripts/pironman5-delayed-restart.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

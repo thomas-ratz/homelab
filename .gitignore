@@ -1,0 +1,197 @@
+# ===========================================
+# Pi5 Homelab - Git Ignore
+# ===========================================
+# Keep: Config files, docker-compose, Makefile, docs
+# Ignore: Media, databases, logs, secrets, caches
+
+# ===========================================
+# Secrets & Environment
+# ===========================================
+.env
+*.env.local
+*.env.*.local
+
+# ===========================================
+# Media Content (large files)
+# ===========================================
+# Video files
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.mpg
+*.mpeg
+*.ts
+*.m2ts
+
+# Audio files
+*.mp3
+*.flac
+*.wav
+*.aac
+*.ogg
+*.wma
+*.m4a
+
+# Image files (media library)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.heic
+*.heif
+*.raw
+*.cr2
+*.nef
+*.arw
+
+# Subtitle files
+*.srt
+*.sub
+*.ass
+*.ssa
+*.vtt
+
+# Torrent files
+*.torrent
+*.fastresume
+
+# ===========================================
+# Media Directories
+# ===========================================
+media/downloads/
+media/movies/
+media/tv/
+media/music/
+
+# Jellyfin cache and transcodes
+media/jellyfin/cache/
+
+# ===========================================
+# Immich Data
+# ===========================================
+immich/library/
+immich/postgres/
+immich/model-cache/
+
+# ===========================================
+# Matrix Data
+# ===========================================
+matrix/postgres/
+matrix/synapse/media_store/
+matrix/synapse/*.log
+matrix/synapse/homeserver.db
+
+# ===========================================
+# Databases & Runtime Data
+# ===========================================
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Portainer data (contains secrets)
+portainer/
+
+# Uptime Kuma database
+uptime-kuma/
+
+# AdGuard work directory (contains query logs, stats)
+adguard/work/
+
+# ===========================================
+# Logs
+# ===========================================
+*.log
+*.log.*
+logs/
+**/logs/
+
+# ===========================================
+# Cache & Temporary Files
+# ===========================================
+**/cache/
+**/.cache/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Gluetun server lists (auto-downloaded)
+gluetun/servers.json
+
+# qBittorrent runtime
+media/qbittorrent/config/qBittorrent/lockfile
+media/qbittorrent/config/qBittorrent/GeoDB/
+media/qbittorrent/config/qBittorrent/BT_backup/
+
+# Prowlarr definitions (auto-downloaded)
+media/prowlarr/config/Definitions/
+media/prowlarr/config/asp/
+*.pid
+
+# ===========================================
+# Tailscale State
+# ===========================================
+tailscale/
+
+# ===========================================
+# Caddy Data (certificates, etc)
+# ===========================================
+caddy/data/
+caddy/config/
+
+# ===========================================
+# OS & Editor Files
+# ===========================================
+.DS_Store
+Thumbs.db
+*.bak
+*.orig
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# ===========================================
+# Keep These Config Files
+# ===========================================
+# These patterns ensure config files are tracked
+!.gitignore
+!docker-compose.yaml
+!Makefile
+!*.md
+
+# Homepage config
+!homepage/config/*.yaml
+!homepage/config/*.css
+!homepage/config/*.js
+
+# Caddy config
+!caddy/Caddyfile
+
+# AdGuard config (but not work data)
+!adguard/conf/
+
+# Unbound config
+!unbound/
+
+# Matrix Element config
+!matrix/element/config.json
+
+# Scripts
+!scripts/
+
+# Examples
+!examples/

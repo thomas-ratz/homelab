@@ -1,0 +1,555 @@
+# ===========================================
+# Pi5 Homelab - Docker Compose
+# ===========================================
+# Core services + Media stack (with VPN) + Photos + Matrix
+#
+# Usage:
+#   make up          - Start core services only
+#   make up-media    - Start core + media services (with VPN)
+#   make up-photos   - Start Immich photo management
+#   make up-matrix   - Start Matrix chat server
+
+networks:
+  homelab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # ===========================================
+  # Reverse Proxy
+  # ===========================================
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    hostname: caddy
+    networks:
+      - homelab
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+
+  # ===========================================
+  # DNS Stack
+  # ===========================================
+
+  unbound:
+    image: klutchell/unbound:latest
+    container_name: unbound
+    restart: unless-stopped
+    hostname: unbound
+    networks:
+      homelab:
+        ipv4_address: 172.20.0.53
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+    hostname: adguard
+    depends_on:
+      - unbound
+    networks:
+      homelab:
+        ipv4_address: 172.20.0.54
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "3000:80"
+    volumes:
+      - ./adguard/work:/opt/adguardhome/work
+      - ./adguard/conf:/opt/adguardhome/conf
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+
+  # ===========================================
+  # Docker Management
+  # ===========================================
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    hostname: portainer
+    networks:
+      - homelab
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./portainer:/data
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+
+  # ===========================================
+  # Monitoring
+  # ===========================================
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    hostname: uptime-kuma
+    depends_on:
+      - dockerproxy
+    networks:
+      - homelab
+    volumes:
+      - ./uptime-kuma:/app/data
+    environment:
+      - DOCKER_HOST=tcp://dockerproxy:2375
+      - TZ=${TZ:-Europe/Athens}
+
+  # ===========================================
+  # Docker Socket Proxy
+  # ===========================================
+
+  dockerproxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    container_name: dockerproxy
+    restart: unless-stopped
+    hostname: dockerproxy
+    networks:
+      - homelab
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - SERVICES=1
+      - TASKS=1
+      - INFO=1
+      - VERSION=1
+
+  # ===========================================
+  # Dashboard
+  # ===========================================
+
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    hostname: homepage
+    depends_on:
+      - dockerproxy
+    networks:
+      - homelab
+    volumes:
+      - ./homepage/config:/app/config
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - HOMEPAGE_ALLOWED_HOSTS=home.thopi.ts,homepage,localhost
+      - HOMEPAGE_VAR_ADGUARD_USER=${HOMEPAGE_VAR_ADGUARD_USER:-admin}
+      - HOMEPAGE_VAR_ADGUARD_PASS=${HOMEPAGE_VAR_ADGUARD_PASS:-}
+      - HOMEPAGE_VAR_PORTAINER_KEY=${HOMEPAGE_VAR_PORTAINER_KEY:-}
+      - HOMEPAGE_VAR_TAILSCALE_DEVICE=${HOMEPAGE_VAR_TAILSCALE_DEVICE:-}
+      - HOMEPAGE_VAR_TAILSCALE_KEY=${HOMEPAGE_VAR_TAILSCALE_KEY:-}
+      - HOMEPAGE_VAR_JELLYFIN_KEY=${HOMEPAGE_VAR_JELLYFIN_KEY:-}
+      - HOMEPAGE_VAR_SONARR_KEY=${HOMEPAGE_VAR_SONARR_KEY:-}
+      - HOMEPAGE_VAR_RADARR_KEY=${HOMEPAGE_VAR_RADARR_KEY:-}
+      - HOMEPAGE_VAR_PROWLARR_KEY=${HOMEPAGE_VAR_PROWLARR_KEY:-}
+      - HOMEPAGE_VAR_BAZARR_KEY=${HOMEPAGE_VAR_BAZARR_KEY:-}
+      - HOMEPAGE_VAR_LIDARR_KEY=${HOMEPAGE_VAR_LIDARR_KEY:-}
+      - HOMEPAGE_VAR_QBIT_USER=${HOMEPAGE_VAR_QBIT_USER:-admin}
+      - HOMEPAGE_VAR_QBIT_PASS=${HOMEPAGE_VAR_QBIT_PASS:-}
+      - HOMEPAGE_VAR_IMMICH_KEY=${HOMEPAGE_VAR_IMMICH_KEY:-}
+
+  # ===========================================
+  # VPN Gateway (Media Stack)
+  # ===========================================
+
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    restart: unless-stopped
+    hostname: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - homelab
+    ports:
+      - "8080:8080"     # qBittorrent Web UI
+      - "9696:9696"     # Prowlarr
+      - "8191:8191"     # FlareSolverr
+      - "8989:8989"     # Sonarr
+      - "7878:7878"     # Radarr
+      - "6767:6767"     # Bazarr
+      - "8686:8686"     # Lidarr
+      - "6881:6881"     # qBittorrent peer port
+      - "6881:6881/udp"
+    volumes:
+      - ./gluetun:/gluetun
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - VPN_SERVICE_PROVIDER=${GLUETUN_VPN_SERVICE_PROVIDER:-protonvpn}
+      - VPN_TYPE=${GLUETUN_VPN_TYPE:-openvpn}
+      - OPENVPN_USER=${GLUETUN_OPENVPN_USER:-}
+      - OPENVPN_PASSWORD=${GLUETUN_OPENVPN_PASSWORD:-}
+      - WIREGUARD_PRIVATE_KEY=${GLUETUN_WIREGUARD_PRIVATE_KEY:-}
+      - SERVER_COUNTRIES=${GLUETUN_SERVER_COUNTRIES:-Netherlands}
+      - FREE_ONLY=${GLUETUN_FREE_ONLY:-false}
+      - VPN_PORT_FORWARDING=on
+      - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      - FIREWALL_OUTBOUND_SUBNETS=172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
+      - FIREWALL_VPN_INPUT_PORTS=6881
+      - FIREWALL_DEBUG=on
+    healthcheck:
+      test: ["CMD-SHELL", "/gluetun-entrypoint healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - media
+
+  # ===========================================
+  # Download Client
+  # ===========================================
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - ./media/qbittorrent/config:/config
+      - ./media/downloads:/downloads
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+      - WEBUI_PORT=8080
+    profiles:
+      - media
+
+  # ===========================================
+  # Indexer Manager
+  # ===========================================
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - ./media/prowlarr/config:/config
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    profiles:
+      - media
+
+  # ===========================================
+  # Cloudflare Bypass (for Prowlarr)
+  # ===========================================
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+    profiles:
+      - media
+
+  # ===========================================
+  # Media Server
+  # ===========================================
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    hostname: jellyfin
+    networks:
+      - homelab
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./media/jellyfin/config:/config
+      - ./media/jellyfin/cache:/cache
+      - ./media/movies:/data/movies
+      - ./media/tv:/data/tv
+      - ./media/music:/data/music
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+      - JELLYFIN_PublishedServerUrl=http://jellyfin.thopi.ts
+    profiles:
+      - media
+
+  # ===========================================
+  # TV Shows
+  # ===========================================
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - ./media/sonarr/config:/config
+      - ./media/downloads:/downloads
+      - ./media/tv:/tv
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    profiles:
+      - media
+
+  # ===========================================
+  # Movies
+  # ===========================================
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - ./media/radarr/config:/config
+      - ./media/downloads:/downloads
+      - ./media/movies:/movies
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    profiles:
+      - media
+
+  # ===========================================
+  # Subtitles
+  # ===========================================
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - ./media/bazarr/config:/config
+      - ./media/movies:/movies
+      - ./media/tv:/tv
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    profiles:
+      - media
+
+  # ===========================================
+  # Music
+  # ===========================================
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    volumes:
+      - ./media/lidarr/config:/config
+      - ./media/downloads:/downloads
+      - ./media/music:/music
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    profiles:
+      - media
+
+  # ===========================================
+  # Photo Management - Immich
+  # ===========================================
+
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    container_name: immich-server
+    restart: unless-stopped
+    hostname: immich-server
+    networks:
+      - homelab
+    ports:
+      - "2283:2283"
+    volumes:
+      - ${IMMICH_UPLOAD_LOCATION:-./immich/library}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - DB_HOSTNAME=immich-postgres
+      - DB_USERNAME=${IMMICH_DB_USERNAME:-postgres}
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - DB_DATABASE_NAME=${IMMICH_DB_DATABASE_NAME:-immich}
+      - REDIS_HOSTNAME=immich-redis
+    depends_on:
+      - immich-redis
+      - immich-postgres
+    profiles:
+      - photos
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    container_name: immich-machine-learning
+    restart: unless-stopped
+    hostname: immich-machine-learning
+    networks:
+      - homelab
+    volumes:
+      - ./immich/model-cache:/cache
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - MACHINE_LEARNING_WORKERS=1
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    profiles:
+      - photos
+
+  immich-redis:
+    image: docker.io/redis:6.2-alpine
+    container_name: immich-redis
+    restart: unless-stopped
+    hostname: immich-redis
+    networks:
+      - homelab
+    healthcheck:
+      test: redis-cli ping || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - photos
+
+  immich-postgres:
+    image: docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0
+    container_name: immich-postgres
+    restart: unless-stopped
+    hostname: immich-postgres
+    networks:
+      - homelab
+    environment:
+      - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - POSTGRES_USER=${IMMICH_DB_USERNAME:-postgres}
+      - POSTGRES_DB=${IMMICH_DB_DATABASE_NAME:-immich}
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    volumes:
+      - ${IMMICH_DB_DATA_LOCATION:-./immich/postgres}:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready --dbname='${IMMICH_DB_DATABASE_NAME:-immich}' --username='${IMMICH_DB_USERNAME:-postgres}' || exit 1
+      interval: 5m
+      start_period: 5m
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=vectors.so
+      - -c
+      - 'search_path="$$user", public, vectors'
+      - -c
+      - logging_collector=on
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - wal_compression=on
+    profiles:
+      - photos
+
+  # ===========================================
+  # Matrix Chat Server
+  # ===========================================
+
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse
+    restart: unless-stopped
+    hostname: synapse
+    networks:
+      - homelab
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./matrix/synapse:/data
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - SYNAPSE_SERVER_NAME=${MATRIX_SERVER_NAME:-matrix.thopi.ts}
+      - SYNAPSE_REPORT_STATS=no
+    depends_on:
+      - matrix-postgres
+    profiles:
+      - matrix
+
+  matrix-postgres:
+    image: postgres:15-alpine
+    container_name: matrix-postgres
+    restart: unless-stopped
+    hostname: matrix-postgres
+    networks:
+      - homelab
+    volumes:
+      - ./matrix/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${MATRIX_DB_USER:-synapse}
+      - POSTGRES_PASSWORD=${MATRIX_DB_PASSWORD:-synapse}
+      - POSTGRES_DB=${MATRIX_DB_NAME:-synapse}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    profiles:
+      - matrix
+
+  element:
+    image: vectorim/element-web:latest
+    container_name: element
+    restart: unless-stopped
+    hostname: element
+    networks:
+      - homelab
+    ports:
+      - "8089:80"
+    volumes:
+      - ./matrix/element/config.json:/app/config.json:ro
+    depends_on:
+      - synapse
+    profiles:
+      - matrix

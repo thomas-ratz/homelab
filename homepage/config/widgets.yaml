@@ -1,0 +1,30 @@
+# ===========================================
+# Pi5 Homelab - Homepage Widgets
+# ===========================================
+
+- resources:
+    label: Pi5 System
+    cpu: true
+    memory: true
+    swap: true
+    disk: /
+    cputemp: true
+    uptime: true
+    refresh: 3000
+
+- search:
+    provider: duckduckgo
+    target: _blank
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: long
+      timeStyle: short
+
+- openmeteo:
+    label: Weather
+    latitude: 37.9838
+    longitude: 23.7275
+    timezone: Europe/Athens
+    units: metric

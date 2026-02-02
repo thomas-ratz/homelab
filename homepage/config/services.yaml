@@ -1,0 +1,171 @@
+# ===========================================
+# Pi5 Homelab - Homepage Services
+# ===========================================
+
+- Infrastructure:
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: http://adguard.thopi.ts
+        description: DNS ad-blocking & filtering
+        server: my-docker
+        container: adguard
+        widget:
+          type: adguard
+          url: http://adguard:80
+          username: "{{HOMEPAGE_VAR_ADGUARD_USER}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_PASS}}"
+
+    - Portainer:
+        icon: portainer.png
+        href: http://portainer.thopi.ts
+        description: Docker container management
+        server: my-docker
+        container: portainer
+
+    - Unbound:
+        icon: mdi-dns-#4A90D9
+        description: Recursive DNS resolver
+        server: my-docker
+        container: unbound
+
+    - Caddy:
+        icon: caddy.png
+        description: Reverse proxy
+        server: my-docker
+        container: caddy
+
+- Monitoring:
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: http://uptime.thopi.ts
+        description: Service uptime monitoring
+        server: my-docker
+        container: uptime-kuma
+        widget:
+          type: uptimekuma
+          url: http://uptime-kuma:3001
+          slug: default
+
+    - Tailscale:
+        icon: tailscale.png
+        href: https://login.tailscale.com/admin/machines
+        description: VPN mesh network
+        widget:
+          type: tailscale
+          deviceid: "{{HOMEPAGE_VAR_TAILSCALE_DEVICE}}"
+          key: "{{HOMEPAGE_VAR_TAILSCALE_KEY}}"
+
+- Media Server:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: http://jellyfin.thopi.ts
+        description: Media streaming server
+        server: my-docker
+        container: jellyfin
+        widget:
+          type: jellyfin
+          url: http://jellyfin:8096
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          enableBlocks: true
+          enableNowPlaying: true
+
+- Media Stack:
+    - Sonarr:
+        icon: sonarr.png
+        href: http://sonarr.thopi.ts
+        description: TV show management
+        server: my-docker
+        container: sonarr
+        widget:
+          type: sonarr
+          url: http://gluetun:8989
+          key: "{{HOMEPAGE_VAR_SONARR_KEY}}"
+
+    - Radarr:
+        icon: radarr.png
+        href: http://radarr.thopi.ts
+        description: Movie management
+        server: my-docker
+        container: radarr
+        widget:
+          type: radarr
+          url: http://gluetun:7878
+          key: "{{HOMEPAGE_VAR_RADARR_KEY}}"
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: http://prowlarr.thopi.ts
+        description: Indexer manager
+        server: my-docker
+        container: prowlarr
+        widget:
+          type: prowlarr
+          url: http://gluetun:9696
+          key: "{{HOMEPAGE_VAR_PROWLARR_KEY}}"
+
+    - Bazarr:
+        icon: bazarr.png
+        href: http://bazarr.thopi.ts
+        description: Subtitle management
+        server: my-docker
+        container: bazarr
+        widget:
+          type: bazarr
+          url: http://gluetun:6767
+          key: "{{HOMEPAGE_VAR_BAZARR_KEY}}"
+
+    - Lidarr:
+        icon: lidarr.png
+        href: http://lidarr.thopi.ts
+        description: Music management
+        server: my-docker
+        container: lidarr
+        widget:
+          type: lidarr
+          url: http://gluetun:8686
+          key: "{{HOMEPAGE_VAR_LIDARR_KEY}}"
+
+- Downloads:
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: http://qbit.thopi.ts
+        description: Torrent client (VPN protected)
+        server: my-docker
+        container: qbittorrent
+        widget:
+          type: qbittorrent
+          url: http://gluetun:8080
+          username: "{{HOMEPAGE_VAR_QBIT_USER}}"
+          password: "{{HOMEPAGE_VAR_QBIT_PASS}}"
+
+    - Gluetun VPN:
+        icon: mdi-vpn-#4CAF50
+        description: VPN gateway for media stack
+        server: my-docker
+        container: gluetun
+        widget:
+          type: gluetun
+          url: http://gluetun:8000
+
+- Photos:
+    - Immich:
+        icon: immich.png
+        href: http://photos.thopi.ts
+        description: Self-hosted photo management
+        server: my-docker
+        container: immich-server
+
+- Chat:
+    - Element:
+        icon: element.png
+        href: http://chat.thopi.ts
+        description: Matrix web client
+        server: my-docker
+        container: element
+
+    - Matrix Synapse:
+        icon: matrix.png
+        href: http://matrix.thopi.ts
+        description: Matrix homeserver
+        server: my-docker
+        container: synapse

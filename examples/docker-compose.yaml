@@ -1,0 +1,931 @@
+services:
+  homarr:
+    container_name: homarr
+    image: ghcr.io/homarr-labs/homarr:v1.50.0
+    restart: unless-stopped
+    mem_limit: "1.5g" # Minimum for Next.js
+    cpus: "1"
+    user: "1000:1000"
+    group_add:
+      - "${DOCKER_GID}"
+    environment:
+      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./homarr/appdata:/appdata
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'node.*next' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+  frigate:
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: "256mb"
+    mem_limit: "512m"
+    cpus: "0.75"
+    devices:
+      - /dev/video0:/dev/video0
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $HOME/Server/frigate/config:/config
+      - $HOME/Server/frigate/media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 268435456
+    ports:
+      - "8971:8971"
+      - "8554:8554"
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
+    environment:
+      FRIGATE_RTSP_PASSWORD: "${FRIGATE_RTSP_PASSWORD}"
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - mosquitto
+  mosquitto:
+    container_name: mosquitto
+    # MQTT broker for inter-service messaging, Frigate events, and watchdog notifications
+    # Pinned to 2.0.x branch for stability - updates within 2.0.x are safe
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    mem_limit: "128m"
+    volumes:
+      - $HOME/Server/mosquitto/config:/mosquitto/config
+      - $HOME/Server/mosquitto/data:/mosquitto/data
+      - $HOME/Server/mosquitto/log:/mosquitto/log
+    ports:
+      - "1883:1883"
+  jellyfin:
+    # WARNING: 10.11.x has EFCore migration - BACKUP before upgrading!
+    # See UPGRADE-NOTES.md for safe upgrade procedure
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: 1000:1000
+    mem_limit: "1g"
+    cpus: "2.0"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [compute, video, utility]
+    volumes:
+      - $HOME/Server/jellyfin/config:/config
+      - $HOME/Server/jellyfin/cache:/cache
+      - type: bind
+        source: $HOME/Server/fileshare/Media
+        target: /media
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+  filebrowser:
+    image: filebrowser/filebrowser
+    container_name: filebrowser
+    mem_limit: "256m"
+    volumes:
+      - $HOME/Server/fileshare:/srv
+      - $HOME/Server/filebrowser/database.db:/database.db
+      # Development repos (read-only to protect active agent work)
+      - $HOME/Server/serverman:/srv/Repos/serverman:ro
+      - $HOME/Server/src/decomper:/srv/Repos/decomper:ro
+      - $HOME/Server/decomp:/srv/Repos/decomp:ro
+      - $HOME/Server/agents:/srv/Agents:ro
+    user: 1000:1000
+    ports:
+      - "7916:80"
+    restart: unless-stopped
+  redbot:
+    image: phasecorex/red-discordbot
+    container_name: redbot
+    restart: unless-stopped
+    mem_limit: "384m"
+    volumes:
+      - ./redbot:/data
+      - ./redbot_cogs/JellyfinFirst/:/data/cogs/CogManager/cogs/JellyfinFirst/
+      - ./redbot_cogs/MxxChat/:/data/cogs/CogManager/cogs/MxxChat/
+      - ./redbot_cogs/MqttSubscriber/:/data/cogs/CogManager/cogs/MqttSubscriber/
+      - ./agents/home:/data/agents/home:ro
+    environment:
+      - TOKEN=${DISCORD_TOKEN}
+      - PREFIX=.
+      - TZ=Europe/Athens
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - JELLYFIN_BASE_URL=${JELLYFIN_BASE_URL}
+      - MXXCHAT_BASE_URL=${MXXCHAT_BASE_URL:-http://ollama:11434/v1}
+      - MXXCHAT_MODEL=${OLLAMA_MODEL:-qwen2.5:7b-instruct-q4_K_M}
+      - MXXCHAT_TEMPLATE=${MXXCHAT_TEMPLATE:-openai_chat}
+      - MXXCHAT_SYSTEM_PROMPT=${MXXCHAT_SYSTEM_PROMPT:-You are a helpful assistant. Reply in the same language as the user's message unless asked otherwise. Keep answers concise.}
+      - AGENTS_HOME_PATH=${AGENTS_HOME_PATH:-/data/agents/home}
+    depends_on:
+      - lavalink
+      - ollama
+  lavalink:
+    # Custom build - Lavalink version pinned in lavalink/Dockerfile (currently 4.1.2)
+    build:
+      context: ./lavalink
+    image: local/lavalink-red
+    container_name: lavalink
+    restart: unless-stopped
+    mem_limit: "640m"
+    cpus: "0.75"
+    environment:
+      - JAVA_OPTS=-Xmx512M
+      - LAVALINK_PASSWORD=${LAVALINK_PASSWORD}
+      - LAVASRC_SPOTIFY_CLIENT_ID=${LAVASRC_SPOTIFY_CLIENT_ID}
+      - LAVASRC_SPOTIFY_CLIENT_SECRET=${LAVASRC_SPOTIFY_CLIENT_SECRET}
+    volumes:
+      - ./lavalink/application.yml:/opt/lavalink/application.yml:ro
+    ports:
+      - "2333:2333"
+  ollama:
+    # GPU-accelerated LLM server for MxxChat
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    mem_limit: "6g"
+    cpus: "2.0"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [compute, utility]
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
+      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-1}
+      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
+      - OLLAMA_KV_CACHE_TYPE=${OLLAMA_KV_CACHE_TYPE:-q8_0}
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-8192}
+      - OLLAMA_MAX_QUEUE=${OLLAMA_MAX_QUEUE:-100}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-5m}
+    volumes:
+      - $HOME/Server/ollama:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      # Use ollama CLI (built into image) instead of curl
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  litellm:
+    # Unified LLM inference gateway - routes to Ollama, Gemini, Groq, OpenRouter
+    # Use stable tag to avoid breaking changes (not main-latest)
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: litellm
+    restart: unless-stopped
+    mem_limit: "512m"
+    cpus: "0.5"
+    ports:
+      - "${LITELLM_PORT:-4011}:4011"
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - LITELLM_MASTER_KEY=${LITELLM_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OLLAMA_API_BASE=http://ollama:11434
+    command: ["--config", "/app/config.yaml", "--port", "4011"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      # Use socket check - just verify port is responding (401 is OK, means server is up)
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(5); s.connect(('127.0.0.1',4011)); s.close()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    restart: unless-stopped
+    mem_limit: "256m"
+    cpus: "0.5"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - VPN_SERVICE_PROVIDER=${GLUETUN_VPN_SERVICE_PROVIDER}
+      - VPN_TYPE=${GLUETUN_VPN_TYPE}
+      # For WireGuard providers (e.g., Mullvad):
+      - WIREGUARD_PRIVATE_KEY=${GLUETUN_WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_PRESHARED_KEY=${GLUETUN_WIREGUARD_PRESHARED_KEY}
+      - WIREGUARD_ADDRESSES=${GLUETUN_WIREGUARD_ADDRESSES}
+      - SERVER_HOSTNAMES=${GLUETUN_SERVER_HOSTNAMES}
+      - SERVER_CITIES=${GLUETUN_SERVER_CITIES}
+      - SERVER_COUNTRIES=${GLUETUN_SERVER_COUNTRIES}
+      - VPN_DISABLE_IPV6=true
+      # allow local LAN and Tailscale access while VPN is up
+      - FIREWALL_OUTBOUND_SUBNETS=${GLUETUN_FIREWALL_OUTBOUND_SUBNETS:-172.16.0.0/12,192.168.0.0/16,100.64.0.0/10}
+      # allow inbound ports for downloaders, *arr stack, and flaresolverr
+      - FIREWALL_INPUT_PORTS=8080,8081,6881,9696,8989,7878,8686,6767,8191
+    volumes:
+      - $HOME/Server/gluetun:/gluetun
+    ports:
+      # qBittorrent
+      - "${QBITTORRENT_PORT:-8080}:8080"
+      # SABnzbd
+      - "${SABNZBD_PORT:-8081}:8081"
+      # qBittorrent peer port
+      - "6881:6881"
+      - "6881:6881/udp"
+      # Prowlarr
+      - "${PROWLARR_PORT:-9696}:9696"
+      # Sonarr
+      - "${SONARR_PORT:-8989}:8989"
+      # Radarr
+      - "${RADARR_PORT:-7878}:7878"
+      # Lidarr
+      - "${LIDARR_PORT:-8686}:8686"
+      # Bazarr
+      - "${BAZARR_PORT:-6767}:6767"
+      # FlareSolverr
+      - "${FLARESOLVERR_PORT:-8191}:8191"
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    mem_limit: "384m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/qbittorrent/config:/config
+      - $HOME/Server/downloads:/downloads
+      - $HOME/Server/fileshare/Media:/media
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    restart: unless-stopped
+    mem_limit: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/sabnzbd/config:/config
+      - $HOME/Server/downloads:/downloads
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    mem_limit: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9696/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/prowlarr/config:/config
+      - $HOME/Server/downloads:/downloads
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      flaresolverr:
+        condition: service_started
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    restart: unless-stopped
+    mem_limit: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/sonarr/config:/config
+      - $HOME/Server/downloads:/downloads
+      - $HOME/Server/fileshare/Media:/media
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      qbittorrent:
+        condition: service_started
+      sabnzbd:
+        condition: service_started
+      prowlarr:
+        condition: service_started
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    mem_limit: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7878/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/radarr/config:/config
+      - $HOME/Server/fileshare/Media:/media
+      - $HOME/Server/downloads:/downloads
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      qbittorrent:
+        condition: service_started
+      sabnzbd:
+        condition: service_started
+      prowlarr:
+        condition: service_started
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    restart: unless-stopped
+    mem_limit: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8686/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/lidarr/config:/config
+      - $HOME/Server/downloads:/downloads
+      - $HOME/Server/fileshare/Media:/media
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      qbittorrent:
+        condition: service_started
+      sabnzbd:
+        condition: service_started
+      prowlarr:
+        condition: service_started
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    mem_limit: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6767/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/bazarr/config:/config
+      - $HOME/Server/fileshare/Media:/media
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      qbittorrent:
+        condition: service_started
+      prowlarr:
+        condition: service_started
+  dashdot:
+    image: mauricenino/dashdot:latest
+    container_name: dashdot
+    restart: unless-stopped
+    mem_limit: "256m"
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - DASHDOT_ENABLE_DOCKER=${DASHDOT_ENABLE_DOCKER:-true}
+      - DASHDOT_ENABLE_CPU_TEMPS=${DASHDOT_ENABLE_CPU_TEMPS:-true}
+      - DASHDOT_CPU_TEMP_SENSORS=${DASHDOT_CPU_TEMP_SENSORS}
+      - DASHDOT_ENABLE_GPU=${DASHDOT_ENABLE_GPU:-true}
+      - DASHDOT_NETWORK_INTERFACES_INCLUDE=${DASHDOT_NETWORK_INTERFACES_INCLUDE}
+      - DASHDOT_NETWORK_INTERFACES_EXCLUDE=${DASHDOT_NETWORK_INTERFACES_EXCLUDE}
+      - DASHDOT_DISK_MOUNT_PATHS=${DASHDOT_DISK_MOUNT_PATHS}
+      - DASHDOT_REFRESH_SECONDS=${DASHDOT_REFRESH_SECONDS:-2}
+      - DASHDOT_LANGUAGE=${DASHDOT_LANGUAGE:-en}
+      - DASHDOT_THEME=${DASHDOT_THEME:-auto}
+      - DASHDOT_HOSTNAME=${DASHDOT_HOSTNAME}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+    ports:
+      - "${DASHDOT_PORT:-3001}:3001"
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    mem_limit: "512m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8191/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    environment:
+      - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
+      - TZ=${TZ:-Europe/Athens}
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+  webserver:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    container_name: webserver
+    restart: unless-stopped
+    mem_limit: "64m"
+    read_only: true
+    ports:
+      - "9999:8080"
+    volumes:
+      - ./webserver:/usr/share/nginx/html:ro
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+      - /var/log/nginx:mode=1777
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8080/list.json > /dev/null || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+    mem_limit: "256m"
+    cpus: "0.5"
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - AGH_UI_PORT=${ADGUARD_UI_PORT:-3000}
+      - AGH_DNS_PORT=${ADGUARD_DNS_PORT:-53}
+    volumes:
+      - $HOME/Server/adguard/work:/opt/adguardhome/work
+      - $HOME/Server/adguard/conf:/opt/adguardhome/conf
+      - $HOME/Server/adguard/allowlist.txt:/allowlist.txt
+    ports:
+      - "${ADGUARD_UI_PORT:-3000}:80"
+
+  tailscale-adguard:
+    # Keep :latest for security updates - managed by tailscale-watchdog.sh
+    image: tailscale/tailscale:latest
+    container_name: tailscale-adguard
+    network_mode: "service:adguard"
+    restart: unless-stopped
+    mem_limit: "64m"
+    cpus: "0.25"
+    depends_on:
+      - adguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_ACCEPT_DNS=true
+      - TS_HOSTNAME=theo-adguard
+    volumes:
+      - ./tailscale/state-adguard:/var/lib/tailscale
+  homarr-proxy:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    container_name: homarr-proxy
+    restart: unless-stopped
+    mem_limit: "64m"
+    read_only: true
+    depends_on:
+      homarr:
+        condition: service_healthy
+      frigate:
+        condition: service_started
+    ports:
+      - "7575:8080"
+    volumes:
+      - ./homarr-proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+      - /var/log/nginx:mode=1777
+
+  qdirstat:
+    image: jlesage/qdirstat:latest
+    container_name: qdirstat
+    restart: unless-stopped
+    mem_limit: "256m"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
+      - KEEP_APP_RUNNING=1
+      - DISPLAY_WIDTH=1920
+      - DISPLAY_HEIGHT=1080
+    volumes:
+      - $HOME/Server/qdirstat/config:/config:rw
+      # Mount storage paths to analyze (read-only for safety)
+      - $HOME/Server:/storage/server:ro
+      - /:/storage/root:ro
+      - $HOME/Server/fileshare/Media:/storage/media:ro
+    ports:
+      - "${QDIRSTAT_PORT:-5800}:5800"
+
+  gitea:
+    # Consider pinning to major version (e.g., 1.22) for stability
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    mem_limit: "256m"
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - TZ=${TZ:-Europe/Athens}
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__server__DOMAIN=theo-git
+      - GITEA__server__SSH_DOMAIN=theo-git
+      - GITEA__server__ROOT_URL=http://theo-git:3000/
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__SSH_PORT=22
+    volumes:
+      - $HOME/Server/gitea/data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  tailscale-gitea:
+    # Keep :latest for security updates - managed by tailscale-watchdog.sh
+    image: tailscale/tailscale:latest
+    container_name: tailscale-gitea
+    network_mode: "service:gitea"
+    restart: unless-stopped
+    mem_limit: "64m"
+    cpus: "0.25"
+    depends_on:
+      gitea:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_ACCEPT_DNS=true
+      - TS_HOSTNAME=theo-git
+    volumes:
+      - ./tailscale/state-gitea:/var/lib/tailscale
+
+  # Gitea Actions Runner - CI/CD for serverman builds
+  act-runner:
+    image: gitea/act_runner:latest
+    container_name: act_runner
+    restart: unless-stopped
+    mem_limit: "512m"
+    depends_on:
+      gitea:
+        condition: service_healthy
+    environment:
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_TOKEN}
+      - GITEA_RUNNER_NAME=homelab-runner
+      - CONFIG_FILE=/data/config.yaml
+    volumes:
+      - ./appdata/act_runner:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/theo/Server:/server:ro
+
+  ha-proxy:
+    image: alpine/socat
+    container_name: ha-proxy
+    restart: unless-stopped
+    mem_limit: "32m"
+    cpus: "0.1"
+    ports:
+      - "8123:8123"
+    command: "TCP-LISTEN:8123,fork,reuseaddr TCP:${HA_VM_IP:-192.168.122.57}:8123"
+
+  # Loki - Lightweight log aggregation system
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    mem_limit: "256m"
+    cpus: "0.5"
+    user: "1000:1000"
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./loki/config.yaml:/etc/loki/local-config.yaml:ro
+      - ./loki/data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/ready >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Serverman Backend - WebSocket server for Docker/HAOS management
+  serverman-server:
+    image: ${SERVERMAN_SERVER_IMAGE:-theo-ubuntu:5000/serverman-server}:${SERVERMAN_SERVER_TAG:-latest}
+    build:
+      context: ./serverman
+      dockerfile: packages/server/Dockerfile
+    container_name: ${SERVERMAN_SERVER_CONTAINER:-serverman-server}
+    restart: unless-stopped
+    init: true  # Reap zombie child processes from systeminformation shell commands
+    mem_limit: "${SERVERMAN_SERVER_MEM_LIMIT:-512m}"
+    user: "1000:1000"
+    group_add:
+      - "987"  # docker group - for /var/run/docker.sock access
+      - "128"  # libvirt group - for /var/run/libvirt/libvirt-sock access
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/libvirt/libvirt-sock:/var/run/libvirt/libvirt-sock:ro
+      - /home/theo/Server:/server:ro
+      - /proc/meminfo:/host/proc/meminfo:ro
+      - /proc/stat:/host/proc/stat:ro
+      - /proc/cpuinfo:/host/proc/cpuinfo:ro
+      - /proc/uptime:/host/proc/uptime:ro
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - SERVER_ROOT=/server
+      - WS_PORT=4201
+      - HOMARR_URL=http://homarr:3000  # Hardcoded for container networking; .env HOMARR_URL is for host scripts only
+      - HOMARR_API_KEY=${HOMARR_API_KEY:-}
+      # HTTP MCP Server (for Docker agents and external clients)
+      - SERVERMAN_MCP_HTTP_PORT=${SERVERMAN_MCP_HTTP_PORT:-4202}
+      - SERVERMAN_MCP_HTTP_API_KEY=${SERVERMAN_MCP_HTTP_API_KEY:-}
+      - SERVERMAN_MCP_HTTP_RATE_LIMIT=${SERVERMAN_MCP_HTTP_RATE_LIMIT:-100}
+      - SERVERMAN_MCP_HTTP_LOGGING=${SERVERMAN_MCP_HTTP_LOGGING:-true}
+      # Home Assistant API (for haos-* tools)
+      - HA_URL=${HA_URL:-}
+      - HA_TOKEN=${HA_TOKEN:-}
+      # LiteLLM inference gateway (unified model routing)
+      - LITELLM_URL=${LITELLM_URL:-http://litellm:4011}
+      - LITELLM_API_KEY=${LITELLM_API_KEY:-}
+      # Gitea API (for gitea-* tools)
+      - GITEA_URL=${GITEA_URL:-http://gitea:3000}
+      - GITEA_TOKEN=${GITEA_TOKEN:-}
+      # *arr stack (hardcoded for container networking via gluetun; .env URLs are for host/local MCP access)
+      - SONARR_URL=http://gluetun:8989
+      - SONARR_API_KEY=${SONARR_API_KEY:-}
+      - RADARR_URL=http://gluetun:7878
+      - RADARR_API_KEY=${RADARR_API_KEY:-}
+      - LIDARR_URL=http://gluetun:8686
+      - LIDARR_API_KEY=${LIDARR_API_KEY:-}
+      - BAZARR_URL=http://gluetun:6767
+      - BAZARR_API_KEY=${BAZARR_API_KEY:-}
+      - PROWLARR_URL=http://gluetun:9696
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY:-}
+      # Jellyfin media server
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+      # Download clients (hardcoded for container networking via gluetun)
+      - QBITTORRENT_URL=http://gluetun:8080
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME:-admin}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD:-}
+      - SABNZBD_URL=http://gluetun:8081
+      - SABNZBD_API_KEY=${SABNZBD_API_KEY:-}
+      # Log aggregation
+      - LOKI_URL=${LOKI_URL:-http://loki:3100}
+      - LOKI_ENABLED=${LOKI_ENABLED:-true}
+    ports:
+      - "${SERVERMAN_WS_PORT:-4201}:4201"
+      - "${SERVERMAN_MCP_HTTP_PORT:-4202}:4202"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4201/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Private Docker registry for remote builds (WSL2 -> homelab)
+  registry:
+    image: registry:2
+    container_name: registry
+    restart: unless-stopped
+    mem_limit: "128m"
+    user: "1000:1000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./appdata/registry:/var/lib/registry
+    environment:
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5000/v2/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Auto-restart unhealthy containers (resilience for gluetun-dependent services)
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: unless-stopped
+    mem_limit: "32m"
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=60
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # decomp.me - Decompilation collaboration platform
+  decomp-postgres:
+    image: postgres:17
+    container_name: decomp-postgres
+    restart: unless-stopped
+    mem_limit: "512m"
+    cpus: "0.5"
+    user: "1000:1000"
+    environment:
+      - POSTGRES_DB=${DECOMP_DB_NAME:-decompme}
+      - POSTGRES_USER=${DECOMP_DB_USER:-decompme}
+      - POSTGRES_PASSWORD=${DECOMP_DB_PASSWORD}
+      - TZ=${TZ:-Europe/Athens}
+    volumes:
+      - $HOME/Server/decomp/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DECOMP_DB_USER:-decompme}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  decomp-backend:
+    build:
+      context: ./decomp/src/backend
+      target: prod
+    image: ${DECOMP_BACKEND_IMAGE:-theo-ubuntu:5000/decomp-backend}:${DECOMP_BACKEND_TAG:-latest}
+    container_name: decomp-backend
+    restart: unless-stopped
+    mem_limit: "1536m"
+    cpus: "2.5"
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - SETFCAP
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
+    ports:
+      - "8000:8000"
+      - "8001:8001"  # WebSocket compile server for permuter
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - DATABASE_HOST=decomp-postgres
+      - DATABASE_URL=postgresql://${DECOMP_DB_USER:-decompme}:${DECOMP_DB_PASSWORD}@decomp-postgres:5432/${DECOMP_DB_NAME:-decompme}
+      - SECRET_KEY=${DECOMP_DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=127.0.0.1,localhost,decomp-backend,theo-ubuntu
+      - ENABLE_SWITCH_SUPPORT=${DECOMP_ENABLE_SWITCH_SUPPORT:-NO}
+      - PERMISSIVE_MODE=${DECOMP_PERMISSIVE_MODE:-YES}
+      - WS_COMPILE_PORT=8001
+      - WS_COMPILE_WORKERS=${DECOMP_WS_WORKERS:-8}
+    volumes:
+      # Compilers and libraries - managed by backend download script
+      - $HOME/Server/decomp/src/backend/compilers:/backend/compilers
+      - $HOME/Server/decomp/src/backend/libraries:/backend/libraries
+      # Django static files
+      - $HOME/Server/decomp/src/backend/static:/backend/static
+      # Sandboxed temp directory for compilation
+      - type: tmpfs
+        target: /sandbox/tmp
+        tmpfs:
+          size: 67108864
+          mode: 1777
+    depends_on:
+      decomp-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  decomp-frontend:
+    build:
+      context: ./decomp/src/frontend
+      target: prod
+      args:
+        - INTERNAL_API_BASE=http://decomp-backend:8000/api
+    image: ${DECOMP_FRONTEND_IMAGE:-theo-ubuntu:5000/decomp-frontend}:${DECOMP_FRONTEND_TAG:-latest}
+    container_name: decomp-frontend
+    restart: unless-stopped
+    mem_limit: "256m"
+    cpus: "0.5"
+    environment:
+      - TZ=${TZ:-Europe/Athens}
+      - INTERNAL_API_BASE=http://decomp-backend:8000/api
+    depends_on:
+      decomp-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080 >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  decomp-nginx:
+    image: nginx:1.28-alpine
+    container_name: decomp-nginx
+    restart: unless-stopped
+    mem_limit: "64m"
+    ports:
+      - "${DECOMP_PORT:-8200}:80"
+    volumes:
+      - ./decomp/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      decomp-frontend:
+        condition: service_healthy
+      decomp-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
