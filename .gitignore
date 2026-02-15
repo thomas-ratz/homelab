@@ -71,8 +71,12 @@ media/movies/
 media/tv/
 media/music/
 
-# Jellyfin cache and transcodes
+# Jellyfin cache, transcodes, and runtime data
 media/jellyfin/cache/
+media/jellyfin/config/data/ScheduledTasks/
+media/jellyfin/config/data/attachments/
+media/jellyfin/config/metadata/
+media/jellyfin/config/log/
 
 # ===========================================
 # Immich Data
@@ -134,10 +138,33 @@ gluetun/servers.json
 media/qbittorrent/config/qBittorrent/lockfile
 media/qbittorrent/config/qBittorrent/GeoDB/
 media/qbittorrent/config/qBittorrent/BT_backup/
+media/qbittorrent/config/qBittorrent/qBittorrent-data.conf
+media/qbittorrent/config/qBittorrent/qBittorrent.conf
 
-# Prowlarr definitions (auto-downloaded)
+# Prowlarr runtime (definitions, backups, error reporting)
 media/prowlarr/config/Definitions/
 media/prowlarr/config/asp/
+media/prowlarr/config/Backups/
+media/prowlarr/config/Sentry/
+
+# Sonarr backups
+media/sonarr/config/Backups/
+
+# Radarr backups and error reporting
+media/radarr/config/Backups/
+media/radarr/config/Sentry/
+
+# Lidarr backups
+media/lidarr/config/Backups/
+
+# Bazarr runtime data and backups
+media/bazarr/config/config/releases.txt
+media/bazarr/config/config/throttled_providers.dat
+media/bazarr/config/backup/
+
+# Threadfin runtime
+media/threadfin/
+
 *.pid
 
 # ===========================================

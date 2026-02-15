@@ -37,6 +37,11 @@ http://jellyfin.thopi.ts {
     reverse_proxy jellyfin:8096
 }
 
+# IPTV / Live TV
+http://threadfin.thopi.ts {
+    reverse_proxy threadfin:34400
+}
+
 # ========== VPN-Protected Services ==========
 
 http://sonarr.thopi.ts {

@@ -180,7 +180,8 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     networks:
-      - homelab
+      homelab:
+        ipv4_address: 172.20.0.20
     ports:
       - "8080:8080"     # qBittorrent Web UI
       - "9696:9696"     # Prowlarr
@@ -195,6 +196,7 @@ services:
       - ./gluetun:/gluetun
     environment:
       - TZ=${TZ:-Europe/Athens}
+      - DNS_ADDRESS=172.20.0.54  # Use AdGuard for DNS
       - VPN_SERVICE_PROVIDER=${GLUETUN_VPN_SERVICE_PROVIDER:-protonvpn}
       - VPN_TYPE=${GLUETUN_VPN_TYPE:-openvpn}
       - OPENVPN_USER=${GLUETUN_OPENVPN_USER:-}
@@ -277,6 +279,28 @@ services:
       - LOG_LEVEL=info
       - LOG_HTML=false
       - CAPTCHA_SOLVER=none
+    profiles:
+      - media
+
+  # ===========================================
+  # IPTV Proxy (Live TV for Jellyfin)
+  # ===========================================
+
+  threadfin:
+    image: fyb3roptik/threadfin:latest
+    container_name: threadfin
+    restart: unless-stopped
+    hostname: threadfin
+    networks:
+      - homelab
+    ports:
+      - "34400:34400"
+    volumes:
+      - ./media/threadfin/config:/home/threadfin/conf
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Athens}
     profiles:
       - media
 
