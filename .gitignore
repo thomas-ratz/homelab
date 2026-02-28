@@ -48,6 +48,7 @@
 *.heic
 *.heif
 *.raw
+*.raf
 *.cr2
 *.nef
 *.arw
@@ -71,12 +72,14 @@ media/movies/
 media/tv/
 media/music/
 
-# Jellyfin cache, transcodes, and runtime data
+# Jellyfin cache, transcodes, plugins, and runtime data
 media/jellyfin/cache/
 media/jellyfin/config/data/ScheduledTasks/
 media/jellyfin/config/data/attachments/
 media/jellyfin/config/metadata/
 media/jellyfin/config/log/
+media/jellyfin/config/plugins/
+media/jellyfin/config/config/livetv.xml
 
 # ===========================================
 # Immich Data
@@ -84,6 +87,11 @@ media/jellyfin/config/log/
 immich/library/
 immich/postgres/
 immich/model-cache/
+
+# ===========================================
+# Photo Import (camera → Immich pipeline)
+# ===========================================
+photos/import/
 
 # ===========================================
 # Matrix Data
@@ -102,6 +110,12 @@ matrix/synapse/homeserver.db
 *.db-journal
 *.sqlite
 *.sqlite3
+
+# NodeCast TV data
+nodecast-tv/
+
+# FileBrowser data and database
+filebrowser/
 
 # Portainer data (contains secrets)
 portainer/
@@ -219,6 +233,18 @@ Thumbs.db
 
 # Scripts
 !scripts/
+
+# Photo import scripts and app
+!photos/*.sh
+!photos/*.py
+!photos/requirements.txt
+
+# Photo import runtime files
+photos/status.json
+photos/import.log
+
+# Photo import venv
+photos/.venv/
 
 # Examples
 !examples/
