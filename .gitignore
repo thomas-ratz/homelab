@@ -242,6 +242,7 @@ Thumbs.db
 # Photo import runtime files
 photos/status.json
 photos/import.log
+photos/recipes.json
 
 # Photo import venv
 photos/.venv/
