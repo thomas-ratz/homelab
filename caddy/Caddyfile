@@ -39,6 +39,7 @@ http://jellyfin.thopi.ts {
 
 # IPTV / Live TV
 http://threadfin.thopi.ts {
+    redir / /web/ permanent
     reverse_proxy threadfin:34400
 }
 
@@ -68,12 +69,32 @@ http://lidarr.thopi.ts {
     reverse_proxy gluetun:8686
 }
 
+# ========== IPTV Player ==========
+
+http://live.thopi.ts {
+    reverse_proxy nodecast-tv:3000 {
+        flush_interval -1
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# ========== File Sharing ==========
+
+http://files.thopi.ts {
+    reverse_proxy filebrowser:80
+}
+
 # ========== Photo Management ==========
 
 http://photos.thopi.ts {
     reverse_proxy immich-server:2283 {
         header_up X-Forwarded-Proto {scheme}
     }
+}
+
+# Photo Import Control Panel
+http://import.thopi.ts {
+    reverse_proxy host.docker.internal:5000
 }
 
 # ========== Matrix Chat ==========

@@ -56,6 +56,20 @@
           key: "{{HOMEPAGE_VAR_TAILSCALE_KEY}}"
 
 - Media Server:
+    - NodeCast TV:
+        icon: mdi-television-play-#E91E63
+        href: http://live.thopi.ts
+        description: IPTV player (Live TV, Movies, Series)
+        server: my-docker
+        container: nodecast-tv
+
+    - Threadfin:
+        icon: mdi-television-classic-#9C27B0
+        href: http://threadfin.thopi.ts/web/
+        description: IPTV proxy for Live TV
+        server: my-docker
+        container: threadfin
+
     - Jellyfin:
         icon: jellyfin.png
         href: http://jellyfin.thopi.ts
@@ -147,6 +161,14 @@
           type: gluetun
           url: http://gluetun:8000
 
+- File Sharing:
+    - FileBrowser:
+        icon: mdi-folder-network-#42A5F5
+        href: http://files.thopi.ts
+        description: File sharing & management
+        server: my-docker
+        container: filebrowser
+
 - Photos:
     - Immich:
         icon: immich.png
@@ -154,6 +176,29 @@
         description: Self-hosted photo management
         server: my-docker
         container: immich-server
+        widget:
+          type: immich
+          url: http://immich-server:2283
+          key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
+
+    - Camera Import:
+        icon: mdi-camera-wireless-#FF7043
+        href: http://import.thopi.ts
+        description: Fujifilm X-T30 III → Immich
+        widget:
+          type: customapi
+          url: http://host.docker.internal:5000/api/status
+          refreshInterval: 3000
+          mappings:
+            - field: status
+              label: Status
+              format: text
+            - field: message
+              label: Details
+              format: text
+            - field: percent
+              label: Progress
+              format: percent
 
 - Chat:
     - Element:

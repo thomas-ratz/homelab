@@ -228,7 +228,35 @@ clients:
     rdns: true
     dhcp: true
     hosts: true
-  persistent: []
+  persistent:
+    - safe_search:
+        enabled: false
+        bing: true
+        duckduckgo: true
+        ecosia: true
+        google: true
+        pixabay: true
+        yandex: true
+        youtube: true
+      blocked_services:
+        schedule:
+          time_zone: Europe/Athens
+        ids: []
+      name: glueton
+      ids:
+        - 172.20.0.20
+      tags: []
+      upstreams: []
+      uid: 019c39b4-a0c4-7b10-bbd8-3f35a8f7f4a4
+      upstreams_cache_size: 0
+      upstreams_cache_enabled: false
+      use_global_settings: false
+      filtering_enabled: false
+      parental_enabled: false
+      safebrowsing_enabled: false
+      use_global_blocked_services: true
+      ignore_querylog: false
+      ignore_statistics: false
 log:
   enabled: true
   file: ""

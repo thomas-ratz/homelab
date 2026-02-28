@@ -148,6 +148,11 @@
       <Url>https://repo.jellyfin.org/files/plugin/manifest.json</Url>
       <Enabled>true</Enabled>
     </RepositoryInfo>
+    <RepositoryInfo>
+      <Name>Jellyfin.Xtream</Name>
+      <Url> https://kevinjil.github.io/Jellyfin.Xtream/repository.json</Url>
+      <Enabled>true</Enabled>
+    </RepositoryInfo>
   </PluginRepositories>
   <EnableExternalContentInSuggestions>true</EnableExternalContentInSuggestions>
   <ImageExtractionTimeoutMs>0</ImageExtractionTimeoutMs>

@@ -68,9 +68,8 @@ general:
   enabled_integrations:
   - anidb
   enabled_providers:
-  - greeksubs
-  - greeksubtitles
   - opensubtitlescom
+  - opensubtitles
   external_webhook_password: ''
   external_webhook_url: ''
   external_webhook_username: ''
@@ -168,13 +167,13 @@ napisy24:
   password: ''
   username: ''
 opensubtitles:
-  password: ''
+  password: Podilato2@
   skip_wrong_fps: false
   ssl: false
   timeout: 15
   use_tag_search: false
-  username: ''
-  vip: false
+  username: soranikubo
+  vip: true
 opensubtitlescom:
   include_ai_translated: false
   password: Podilato2@
