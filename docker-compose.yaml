@@ -493,6 +493,7 @@ services:
       - DB_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
       - DB_DATABASE_NAME=${IMMICH_DB_DATABASE_NAME:-immich}
       - REDIS_HOSTNAME=immich-redis
+      - MACHINE_LEARNING_URL=${IMMICH_ML_URL:-http://immich-machine-learning:3003}
     depends_on:
       - immich-redis
       - immich-postgres

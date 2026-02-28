@@ -178,6 +178,7 @@
         container: immich-server
         widget:
           type: immich
+          version: 2
           url: http://immich-server:2283
           key: "{{HOMEPAGE_VAR_IMMICH_KEY}}"
 
